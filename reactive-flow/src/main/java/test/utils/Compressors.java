@@ -1,15 +1,15 @@
-package test;
+package test.utils;
 
 import org.springframework.util.StreamUtils;
 import org.tukaani.xz.LZMA2Options;
 import org.tukaani.xz.UnsupportedOptionsException;
 import org.tukaani.xz.XZOutputStream;
+import test.utils.Indexed;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.zip.GZIPOutputStream;
 
 public class Compressors {
 
@@ -41,6 +41,6 @@ public class Compressors {
     }
 
     public static Indexed<byte[]> compressLzmaIndexed(Indexed<byte[]> indexed, int read) {
-        return new Indexed<>(compressLzma(indexed.value, read), indexed.index);
+        return new Indexed<>(compressLzma(indexed.getValue(), read), indexed.getIndex());
     }
 }

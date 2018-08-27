@@ -4,7 +4,9 @@ import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
 import io.reactivex.processors.UnicastProcessor;
 import io.reactivex.schedulers.Schedulers;
-import org.springframework.util.StreamUtils;
+import test.rxjava.RxUtils;
+import test.utils.Compressors;
+import test.utils.Indexed;
 
 import java.io.*;
 import java.util.concurrent.ExecutorService;
@@ -12,7 +14,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
-import java.util.zip.GZIPOutputStream;
 
 public class TestRxJava {
     public static void main(String[] args) {
@@ -38,7 +39,7 @@ public class TestRxJava {
                 .zipWith(naturals, Indexed::new)
                 .parallel(8)
                 .runOn(from)
-                .map(this::compressLzma)
+                .map(e -> Compressors.compressLzmaIndexed(e, e.getValue().length))
                 .sequential();
 
         Thread t = createReadingThread(running, unicastProcessor);
@@ -48,7 +49,7 @@ public class TestRxJava {
                 .compose(RxUtils.createReorderingTransformer())
                 .blockingSubscribe(e -> {
                     running.decrementAndGet();
-                    System.out.println("Got byte[] index " + e.index + " with size " + e.value.length);
+                    System.out.println("Got byte[] index " + e.getIndex() + " with size " + e.getValue().length);
                 });
 
 
@@ -87,34 +88,5 @@ public class TestRxJava {
     }
 
     AtomicLong atomicInteger = new AtomicLong();
-
-    private Indexed<byte[]> compress(Indexed<byte[]> bytes) {
-        long lambdaStart = System.currentTimeMillis();
-        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes.value);
-        System.out.println("Compressing " + bytes.index + " on thread " + Thread.currentThread().getName());
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try (GZIPOutputStream gzipOutputStream = new GZIPOutputStream(out)) {
-
-            StreamUtils.copy(byteArrayInputStream, gzipOutputStream);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        byte[] bytes1 = out.toByteArray();
-        long duration = System.currentTimeMillis() - lambdaStart;
-        atomicInteger.addAndGet(duration);
-        return new Indexed(bytes1, bytes.index);
-    }
-
-    private Indexed<byte[]> compressLzma(Indexed<byte[]> bytes) {
-        long lambdaStart = System.currentTimeMillis();
-        System.out.println("Compressing " + bytes.index + " on thread " + Thread.currentThread().getName());
-
-        byte[] value = bytes.value;
-        byte[] bytes1 = Compressors.compressLzma(value, value.length);
-        long duration = System.currentTimeMillis() - lambdaStart;
-        atomicInteger.addAndGet(duration);
-        return new Indexed(bytes1, bytes.index);
-    }
 
 }

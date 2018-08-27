@@ -1,4 +1,6 @@
-package test;
+package test.singlethreaded;
+
+import test.utils.Compressors;
 
 import java.io.*;
 

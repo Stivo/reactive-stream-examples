@@ -1,13 +1,14 @@
-package test;
+package test.rxjava;
 
 import com.github.davidmoten.rx2.flowable.Transformers;
 import io.reactivex.FlowableTransformer;
+import test.utils.Indexed;
 
 import java.util.TreeMap;
 
 public class RxUtils {
 
-    static FlowableTransformer<Indexed<byte[]>, Indexed<byte[]>> createReorderingTransformer() {
+    public static FlowableTransformer<Indexed<byte[]>, Indexed<byte[]>> createReorderingTransformer() {
 
         return Transformers.stateMachine()
                 .initialStateFactory(() -> new State(new TreeMap<>(), 0))
@@ -16,7 +17,7 @@ public class RxUtils {
                     int current = state.current;
                     TreeMap<Integer, Indexed<byte[]>> elements = state.getElements();
 
-                    if (element.index == state.getCurrent()) {
+                    if (element.getIndex() == state.getCurrent()) {
                         subscriber.onNext(element);
                         current += 1;
                         while (elements.containsKey(current)) {
@@ -25,14 +26,14 @@ public class RxUtils {
                         }
                         return new State(elements, current);
                     } else {
-                        elements.put(element.index, element);
+                        elements.put(element.getIndex(), element);
                         //maximumQueued.set(Math.max(maximumQueued.get(), elements.size()));
                         return new State(elements, current);
                     }
                 }).build();
     }
 
-    static class State {
+    public static class State {
         private TreeMap<Integer, Indexed<byte[]>> elements;
         private int current;
 

@@ -1,32 +1,27 @@
 package test;
 
 import com.github.davidmoten.rx2.Bytes;
-import com.github.davidmoten.rx2.StateMachine;
 import com.github.davidmoten.rx2.flowable.Transformers;
 import io.reactivex.Flowable;
 import io.reactivex.FlowableTransformer;
-import io.reactivex.Observable;
 import io.reactivex.Scheduler;
-import org.reactivestreams.Subscriber;
 import org.springframework.core.io.buffer.*;
 import org.springframework.util.StreamUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.UnicastProcessor;
 import reactor.core.scheduler.Schedulers;
+import test.utils.Indexed;
 
 import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.zip.GZIPOutputStream;
-
-import static io.reactivex.schedulers.Schedulers.io;
 
 public class TestFlow {
     public static void main(String[] args) {
@@ -143,7 +138,7 @@ public class TestFlow {
         FlowableTransformer<Indexed<byte[]>, Indexed<byte[]>> build = Transformers.stateMachine()
                 .initialStateFactory(State::new)
                 .<Indexed<byte[]>, Indexed<byte[]>>transition((state, element, subscriber) -> {
-                    if (element.index == state.current) {
+                    if (element.getIndex() == state.current) {
                         state.current += 1;
                         subscriber.onNext(element);
                         while (state.elements.containsKey(state.current)) {
@@ -152,7 +147,7 @@ public class TestFlow {
                         }
                         return state;
                     } else {
-                        state.elements.put(element.index, element);
+                        state.elements.put(element.getIndex(), element);
                         atomicInteger.set(Math.max(atomicInteger.get(), state.elements.size()));
                         return state;
                     }
@@ -168,7 +163,7 @@ public class TestFlow {
                 .sequential();
         sequential
                 .compose(build)
-                .blockingSubscribe(e -> System.out.println("Got byte[] index "+e.index+" with size "+e.value.length));
+                .blockingSubscribe(e -> System.out.println("Got byte[] index "+e.getIndex()+" with size "+e.getValue().length));
 
 
 
@@ -189,8 +184,8 @@ public class TestFlow {
 
     private Indexed<byte[]> compress(Indexed<byte[]> bytes) {
         long lambdaStart = System.currentTimeMillis();
-        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes.value);
-        System.out.println("Compressing "+bytes.index+" on thread " + Thread.currentThread().getName());
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes.getValue());
+        System.out.println("Compressing "+bytes.getIndex()+" on thread " + Thread.currentThread().getName());
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
@@ -202,7 +197,7 @@ public class TestFlow {
         byte[] bytes1 = out.toByteArray();
         long duration = System.currentTimeMillis() - lambdaStart;
         atomicInteger.addAndGet(duration);
-        return new Indexed(bytes1, bytes.index);
+        return new Indexed(bytes1, bytes.getIndex());
     }
 
     static class State {

@@ -1,19 +1,17 @@
-package test;
+package test.rxjava;
 
 import com.github.davidmoten.rx2.Bytes;
 import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
-import io.reactivex.processors.UnicastProcessor;
 import io.reactivex.schedulers.Schedulers;
-import org.springframework.util.StreamUtils;
+import test.utils.Compressors;
+import test.utils.Indexed;
 
 import java.io.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
-import java.util.zip.GZIPOutputStream;
 
 public class RxJavaWithoutBackpressureOrdered {
     public static void main(String[] args) {
@@ -37,14 +35,14 @@ public class RxJavaWithoutBackpressureOrdered {
                 .zipWith(naturals, Indexed::new)
                 .parallel(8)
                 .runOn(from)
-                .map(e -> Compressors.compressLzmaIndexed(e, e.value.length))
+                .map(e -> Compressors.compressLzmaIndexed(e, e.getValue().length))
                 .sequential();
 
         sequential
                 .compose(RxUtils.createReorderingTransformer())
                 .blockingSubscribe(e -> {
                     running.decrementAndGet();
-                    System.out.println("Got byte[] index " + e.index + " with size " + e.value.length);
+                    System.out.println("Got byte[] index " + e.getIndex() + " with size " + e.getValue().length);
                 });
 
 

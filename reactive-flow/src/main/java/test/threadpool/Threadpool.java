@@ -1,9 +1,11 @@
-package test;
+package test.threadpool;
+
+import test.utils.Compressors;
+import test.utils.Indexed;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -93,7 +95,7 @@ public class Threadpool {
             Indexed<byte[]> indexed = new Indexed<>(buffer, index);
             Future<Indexed<byte[]>> future = executorService.submit(() -> {
                 Indexed<byte[]> done = Compressors.compressLzmaIndexed(indexed, read);
-                compressedBytes.addAndGet(done.value.length);
+                compressedBytes.addAndGet(done.getValue().length);
                 running.decrementAndGet();
                 return done;
             });
