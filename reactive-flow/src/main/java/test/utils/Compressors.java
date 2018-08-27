@@ -21,7 +21,7 @@ public class Compressors {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         var opt = new LZMA2Options();
         try {
-            opt.setDictSize(1024 * 1024* 1);
+            opt.setDictSize(1024 * 1024 * 2);
         } catch (UnsupportedOptionsException e) {
             e.printStackTrace();
         }

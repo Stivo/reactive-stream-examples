@@ -2,10 +2,13 @@ package test.threadpool;
 
 import test.utils.Compressors;
 import test.utils.Indexed;
+import test.utils.Parameters;
+import test.utils.TimeMeasure;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.util.HashMap;
+import java.io.FileOutputStream;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,21 +18,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class Threadpool {
     long millis = System.currentTimeMillis();
 
-    static int blocksize = 1024 * 1024;
-
     public static void main(String[] args) throws Exception {
-        Threadpool threadpool = new Threadpool();
-        threadpool.withoutBackpressure();
-//        threadpool.withBackpressure();
+        TimeMeasure.measure("Threadpool", () -> {
+            Threadpool threadpool = new Threadpool();
+//        threadpool.withoutBackpressure();
+            threadpool.withBackpressure();
 
-        System.out.println("Finished after " + (System.currentTimeMillis() - threadpool.millis));
-        System.out.println("Total compression time " + Compressors.getLzmaTotalMs());
-        System.out.println("Total compressed bytes " + threadpool.compressedBytes.get());
+        });
+
     }
 
-    //            String name = "C:\\backup\\backup-demo\\shakespeare.txt";
-    String name = "C:\\backup\\dest1\\volume\\volume_000000.json";
-//    String name = "C:\\Riot Games\\League of Legends\\RADS\\projects\\lol_game_client\\filearchives\\0.0.1.169\\Archive_1.raf.dat";
+    String name = Parameters.fileToBackup;
 
     AtomicInteger running = new AtomicInteger();
     AtomicInteger submitted = new AtomicInteger();
@@ -37,6 +36,7 @@ public class Threadpool {
 
 
     public void withoutBackpressure() throws Exception  {
+        FileOutputStream data = new FileOutputStream("data");
         ExecutorService executorService = Executors.newFixedThreadPool(10);
         long totalRead = 0;
         File file = new File(name);
@@ -44,7 +44,7 @@ public class Threadpool {
         TreeMap<Integer, Future<byte[]>> futures = new TreeMap<>();
         int index = 0;
         while (fileInputStream.available() > 0) {
-            byte[] buffer = new byte[blocksize];
+            byte[] buffer = new byte[Parameters.blockSize];
             int read = fileInputStream.read(buffer);
             totalRead += read;
             System.out.println("Read and compressed " + totalRead + " of " + file.length() + " after " +
@@ -59,8 +59,10 @@ public class Threadpool {
             running.incrementAndGet();
             submitted.incrementAndGet();
             while (futures.firstEntry().getValue().isDone()) {
-                Integer key = futures.firstEntry().getKey();
+                Map.Entry<Integer, Future<byte[]>> integerFutureEntry = futures.firstEntry();
+                Integer key = integerFutureEntry.getKey();
                 System.out.println("Future " + key+" is done");
+                data.write(integerFutureEntry.getValue().get());
                 futures.remove(key);
             }
             index += 1;
@@ -72,7 +74,9 @@ public class Threadpool {
             System.out.println("Read and compressed " + totalRead + " of " + file.length() + " after " +
                     (System.currentTimeMillis() - millis)+", futures open " + running.get()+" submitted " +submitted.get());
             while (!futures.isEmpty() && futures.firstEntry().getValue().isDone()) {
-                Integer key = futures.firstEntry().getKey();
+                Map.Entry<Integer, Future<byte[]>> integerFutureEntry = futures.firstEntry();
+                Integer key = integerFutureEntry.getKey();
+                data.write(integerFutureEntry.getValue().get());
                 System.out.println("Future " + key+" is done");
                 futures.remove(key);
             }
@@ -85,9 +89,10 @@ public class Threadpool {
         int index = 0;
         File file = new File(name);
         FileInputStream fileInputStream = new FileInputStream(name);
-        HashMap<Integer, Future<Indexed<byte[]>>> futures = new HashMap<>();
+        FileOutputStream data = new FileOutputStream("data");
+        TreeMap<Integer, Future<Indexed<byte[]>>> futures = new TreeMap<>();
         while (fileInputStream.available() > 0) {
-            byte[] buffer = new byte[blocksize];
+            byte[] buffer = new byte[Parameters.blockSize];
             int read = fileInputStream.read(buffer);
             totalRead += read;
             System.out.println("Read and compressed " + totalRead + " of " + file.length() + " after " +
@@ -102,18 +107,24 @@ public class Threadpool {
             running.incrementAndGet();
             submitted.incrementAndGet();
             futures.put(index, future);
-            index += 1;
             if (futures.containsKey(index - 20)) {
-                futures.remove(index - 20).get();
+                data.write(futures.remove(index - 20).get().getValue());
             }
+            index += 1;
         }
         System.out.println("Submitted after " + (System.currentTimeMillis() - millis));
+        while (!futures.isEmpty()) {
+            Map.Entry<Integer, Future<Indexed<byte[]>>> integerFutureEntry = futures.firstEntry();
+            data.write(integerFutureEntry.getValue().get().getValue());
+            futures.remove(integerFutureEntry.getKey());
+        }
         executorService.shutdown();
         while (!executorService.isTerminated()) {
             Thread.sleep(1000);
             System.out.println("Read and compressed " + totalRead + " of " + file.length() + " after " +
                     (System.currentTimeMillis() - millis)+", futures open " + running.get()+" submitted " +submitted.get());
         }
+        data.close();
     }
 
 }

@@ -6,6 +6,7 @@ import io.reactivex.Scheduler;
 import io.reactivex.schedulers.Schedulers;
 import test.utils.Compressors;
 import test.utils.Indexed;
+import test.utils.Parameters;
 
 import java.io.*;
 import java.util.concurrent.ExecutorService;
@@ -31,7 +32,7 @@ public class RxJavaWithoutBackpressureOrdered {
         AtomicInteger running = new AtomicInteger();
         ExecutorService executor = Executors.newFixedThreadPool(8);
         Scheduler from = Schedulers.from(executor);
-        Flowable<Indexed<byte[]>> sequential = Bytes.from(new File(name), 1024 * 1024)
+        Flowable<Indexed<byte[]>> sequential = Bytes.from(new File(name), Parameters.blockSize)
                 .zipWith(naturals, Indexed::new)
                 .parallel(8)
                 .runOn(from)

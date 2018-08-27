@@ -2,6 +2,8 @@ plugins {
     id 'java'
 }
 
+apply plugin: 'scala'
+
 group 'test'
 version '1.0-SNAPSHOT'
 
@@ -12,6 +14,8 @@ repositories {
 }
 
 dependencies {
+    compile 'org.scala-lang:scala-library:2.12.6'
+
     compile 'io.projectreactor:reactor-core:3.1.8.RELEASE'
     compile group: 'org.springframework', name: 'spring-core', version: '5.0.8.RELEASE'
     compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.2.1'
@@ -22,3 +26,5 @@ dependencies {
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
+
+compileScala.targetCompatibility = "1.8"

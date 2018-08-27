@@ -6,6 +6,7 @@ import io.reactivex.processors.UnicastProcessor;
 import io.reactivex.schedulers.Schedulers;
 import test.utils.Compressors;
 import test.utils.Indexed;
+import test.utils.Parameters;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -63,7 +64,7 @@ public class RxJavaWithBackpressureOrdered {
         return new Thread(() -> {
                 try (FileInputStream fileInputStream = new FileInputStream(name)) {
                     while (fileInputStream.available() > 0) {
-                        byte[] bytes = new byte[1024 * 1024];
+                        byte[] bytes = new byte[Parameters.blockSize];
                         int i = fileInputStream.readNBytes(bytes, 0, bytes.length);
                         if (i != bytes.length) {
                             byte[] bytes1 = new byte[i];
