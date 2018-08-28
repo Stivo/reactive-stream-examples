@@ -1,13 +1,18 @@
 package actors
 
-import java.io.{FileInputStream, FileOutputStream}
+import java.io.{File, FileInputStream, FileOutputStream}
+import java.nio.Buffer
+import java.nio.file.Files
 
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
+import org.apache.commons.io.FileUtils
 import test.utils.{Compressors, Parameters, TimeMeasure}
 
 import scala.collection.immutable.TreeMap
+import scala.collection.mutable
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
@@ -21,73 +26,31 @@ case class CompressedBlock(content: Array[Byte])
 
 class Storage extends Actor {
   private val data = new FileOutputStream("data")
+  private val metadata: mutable.Buffer[String] = mutable.Buffer.empty
+  private var counter = 0
   override def receive: Receive = {
-    case "Finish?" => {
-      data.close()
-      sender() ! true
-    }
     case b: CompressedBlock =>
       data.write(b.content)
-    case _ => ???
+      metadata += s"$counter ${b.content.length}"
+      counter += 1
+    case Actors.`askIfFinished` => {
+      data.close()
+      FileUtils.writeLines(new File("metadata"), metadata.asJava)
+      sender() ! true
+    }
+    case x => throw new IllegalArgumentException("Unexpected message " + x)
   }
 }
-
-
-class Compressor extends Actor {
-  import scala.concurrent.ExecutionContext.Implicits.global
-  private var destination: TreeMap[Int, ActorRef] = TreeMap.empty
-  private var doneBlocks: TreeMap[Int, CompressedBlock] = TreeMap.empty
-  private var nextToSend: Int = 0
-  private var futuresEnqueued: Int = 0
-
-  private def emptyIfReady(): Unit = {
-    while (doneBlocks.contains(nextToSend)) {
-      destination(nextToSend) ! doneBlocks(nextToSend)
-      doneBlocks -= nextToSend
-      destination -= nextToSend
-      nextToSend += 1
-    }
-    updateOpenFutures()
-  }
-
-  override def receive: Receive = {
-    case (int: Int, cb: CompressedBlock) =>
-      doneBlocks += int -> cb
-      emptyIfReady()
-
-    case (b: Block, dest: ActorRef) =>
-      val compressorSelf = self
-      destination += futuresEnqueued -> dest
-      val thisFuture = futuresEnqueued
-      Future {
-        val compressed = Actors.compress(b)
-        compressorSelf ! (thisFuture, compressed)
-      }
-      futuresEnqueued += 1
-      updateOpenFutures()
-
-    case "Finish?" => {
-      println(s"Received question about finishing, $nextToSend == $futuresEnqueued?")
-      sender() ! (nextToSend == futuresEnqueued)
-    }
-
-    case _ => ???
-  }
-
-  private def updateOpenFutures(): Unit = {
-    Actors.openFutures = futuresEnqueued - nextToSend
-  }
-
-}
-
 
 object Actors {
+  val askIfFinished = "Finished?"
+
   implicit val timeout = Timeout(5.minutes)
 
   @volatile var openFutures = 0
 
   def main(args: Array[String]): Unit = {
-    TimeMeasure.measure("Akka Actors", () => {
+    TimeMeasure.measure("AkkaStream Actors", () => {
       import akka.actor.ActorSystem
 
       val system = ActorSystem("mySystem")
@@ -97,19 +60,12 @@ object Actors {
 
       readFile(name, (bytes, read) => {
         compressor ! (Block(bytes, read), storage)
-        while (openFutures > 20) {
-          Thread.sleep(50)
-        }
       })
       waitForActorToFinish(compressor)
       waitForActorToFinish(storage)
 
       system.terminate()
     })
-  }
-
-  def compress(block: Block) = {
-    CompressedBlock(Compressors.compressLzma(block.content, block.contentLength))
   }
 
   def readFile(name: String, function: (Array[Byte], Int) => Unit) = {
@@ -125,7 +81,7 @@ object Actors {
   def waitForActorToFinish(compressor: ActorRef): Unit = {
     var keepWaiting = true
     while (keepWaiting) {
-      val result = compressor ? "Finish?"
+      val result = compressor ? askIfFinished
       Await.result(result, 5.seconds) match {
         case true => keepWaiting = false
         case _ => Thread.sleep(50)
@@ -133,5 +89,61 @@ object Actors {
     }
   }
 
+}
+
+
+class Compressor extends Actor {
+  import scala.concurrent.ExecutionContext.Implicits.global
+  private var destination: TreeMap[Int, ActorRef] = TreeMap.empty
+  private var doneBlocks: TreeMap[Int, CompressedBlock] = TreeMap.empty
+  private var nextToSend: Int = 0
+  private var futuresEnqueued: Int = 0
+
+  val compressorSelf = self
+
+  private def emptyIfReady(): Unit = {
+    while (doneBlocks.contains(nextToSend)) {
+      destination(nextToSend) ! doneBlocks(nextToSend)
+      doneBlocks -= nextToSend
+      destination -= nextToSend
+      nextToSend += 1
+    }
+    updateOpenFutures()
+  }
+
+  override def receive: Receive = {
+    case (b: Block, dest: ActorRef) =>
+      destination += futuresEnqueued -> dest
+      val thisFuture = futuresEnqueued
+      Future {
+        val compressed = compress(b)
+        compressorSelf ! (thisFuture, compressed)
+      }
+      futuresEnqueued += 1
+      updateOpenFutures()
+
+    case (int: Int, cb: CompressedBlock) =>
+      doneBlocks += int -> cb
+      emptyIfReady()
+
+    case Actors.`askIfFinished` => {
+      println(s"Received question about finishing, $nextToSend == $futuresEnqueued?")
+      sender() ! (nextToSend == futuresEnqueued)
+    }
+
+    case x => throw new IllegalArgumentException("Unexpected message " + x)
+  }
+
+  private def compress(block: Block) = {
+    CompressedBlock(Compressors.compressLzma(block.content, block.contentLength))
+  }
+
+  private def updateOpenFutures(): Unit = {
+    Actors.openFutures = futuresEnqueued - nextToSend
+  }
 
 }
+
+//while (openFutures > 20) {
+//  Thread.sleep(50)
+//}

@@ -7,6 +7,9 @@ import java.io.File;
 public class TimeMeasure {
 
     public static void measure(String name, ThrowingRunnable runnable) throws Exception {
+        new File("data").delete();
+        new File("metadata").delete();
+
         long start = System.currentTimeMillis();
         runnable.run();
         long totalTime = System.currentTimeMillis() - start;
