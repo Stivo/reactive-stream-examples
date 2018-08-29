@@ -4,7 +4,6 @@ import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
 import io.reactivex.processors.UnicastProcessor;
 import io.reactivex.schedulers.Schedulers;
-import test.rxjava.RxUtils;
 import test.utils.Compressors;
 import test.utils.Indexed;
 import test.utils.Parameters;
@@ -15,6 +14,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
+
+import static test.rxjava.RxJavaWithBackpressureOrdered.createReorderingTransformer;
 
 public class TestRxJava {
     public static void main(String[] args) {
@@ -47,7 +48,7 @@ public class TestRxJava {
         t.start();
 
         sequential
-                .compose(RxUtils.createReorderingTransformer())
+                .compose(createReorderingTransformer())
                 .blockingSubscribe(e -> {
                     running.decrementAndGet();
                     System.out.println("Got byte[] index " + e.getIndex() + " with size " + e.getValue().length);

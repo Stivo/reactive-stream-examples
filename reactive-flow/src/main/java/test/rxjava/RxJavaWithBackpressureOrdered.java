@@ -1,6 +1,8 @@
 package test.rxjava;
 
+import com.github.davidmoten.rx2.flowable.Transformers;
 import io.reactivex.Flowable;
+import io.reactivex.FlowableTransformer;
 import io.reactivex.Scheduler;
 import io.reactivex.processors.UnicastProcessor;
 import io.reactivex.schedulers.Schedulers;
@@ -10,6 +12,7 @@ import test.utils.Parameters;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,8 +23,7 @@ public class RxJavaWithBackpressureOrdered {
         new RxJavaWithBackpressureOrdered().withBackpressureRxJava();
     }
 
-    //            String name = "C:\\backup\\backup-demo\\shakespeare.txt";
-    String name = "C:\\backup\\dest1\\volume\\volume_000000.json";
+    String name = Parameters.fileToBackup;
 
     public void withBackpressureRxJava() {
         Iterable<Integer> naturals = IntStream.iterate(0, i -> i + 1)::iterator;
@@ -45,7 +47,7 @@ public class RxJavaWithBackpressureOrdered {
         t.start();
 
         sequential
-                .compose(RxUtils.createReorderingTransformer())
+                .compose(createReorderingTransformer())
                 .blockingSubscribe(e -> {
                     running.decrementAndGet();
                     System.out.println("Got byte[] index " + e.getIndex() + " with size " + e.getValue().length);
@@ -85,6 +87,49 @@ public class RxJavaWithBackpressureOrdered {
                     e.printStackTrace();
                 }
             }, "reader");
+    }
+
+
+    public static FlowableTransformer<Indexed<byte[]>, Indexed<byte[]>> createReorderingTransformer() {
+
+        return Transformers.stateMachine()
+                .initialStateFactory(() -> new State(new TreeMap<>(), 0))
+                .<Indexed<byte[]>, Indexed<byte[]>>transition((state, element, subscriber) -> {
+                    System.out.println("State transition for element " + element + " on thread " + Thread.currentThread().getName());
+                    int current = state.current;
+                    TreeMap<Integer, Indexed<byte[]>> elements = state.getElements();
+
+                    if (element.getIndex() == state.getCurrent()) {
+                        subscriber.onNext(element);
+                        current += 1;
+                        while (elements.containsKey(current)) {
+                            subscriber.onNext(elements.remove(current));
+                            current += 1;
+                        }
+                        return new State(elements, current);
+                    } else {
+                        elements.put(element.getIndex(), element);
+                        return new State(elements, current);
+                    }
+                }).build();
+    }
+
+    public static class State {
+        private TreeMap<Integer, Indexed<byte[]>> elements;
+        private int current;
+
+        public State(TreeMap<Integer, Indexed<byte[]>> elements, int current) {
+            this.elements = new TreeMap<>(elements);
+            this.current = current;
+        }
+
+        public TreeMap<Integer, Indexed<byte[]>> getElements() {
+            return new TreeMap<>(elements);
+        }
+
+        public int getCurrent() {
+            return current;
+        }
     }
 
 }

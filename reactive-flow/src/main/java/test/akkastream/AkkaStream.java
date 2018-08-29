@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class AkkaStream {
 
@@ -28,7 +27,6 @@ public class AkkaStream {
 
     public static void main(String[] args) throws Exception {
         TimeMeasure.measure("Akka Stream", () -> {
-            AtomicInteger compressedBytes = new AtomicInteger();
 
             final ActorSystem system = ActorSystem.create("compression");
             final ActorMaterializer mat = ActorMaterializer.create(system);
@@ -46,7 +44,6 @@ public class AkkaStream {
                             return new Indexed<>(bytes1, pair.second().intValue());
                         }))
                         .runForeach((e) -> {
-                            compressedBytes.addAndGet(e.getValue().length);
                             System.out.println("Compressed index " + e.getIndex() + " down to " + e.getValue().length);
                             metadata.add(e.getIndex() + " " + e.getValue().length);
                             data.write(e.getValue());
