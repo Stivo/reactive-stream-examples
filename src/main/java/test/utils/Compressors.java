@@ -4,7 +4,6 @@ import org.springframework.util.StreamUtils;
 import org.tukaani.xz.LZMA2Options;
 import org.tukaani.xz.UnsupportedOptionsException;
 import org.tukaani.xz.XZOutputStream;
-import test.utils.Indexed;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
