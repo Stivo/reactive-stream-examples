@@ -44,6 +44,7 @@ class Storage extends Actor {
 
 object Actors {
   val askIfFinished = "Finished?"
+  val queryForOpenFutures = "openFutures?"
 
   implicit val timeout = Timeout(5.minutes)
 
@@ -60,6 +61,10 @@ object Actors {
 
       readFile(name, (bytes, read) => {
         compressor ! (Block(bytes, read), storage)
+        while (openFutures > 20) {
+          println(s"Currently have $openFutures open futures, so waiting before resubmitting")
+          Thread.sleep(500)
+        }
       })
       waitForActorToFinish(compressor)
       waitForActorToFinish(storage)
@@ -113,8 +118,8 @@ class Compressor extends Actor {
 
   override def receive: Receive = {
     case (b: Block, dest: ActorRef) =>
-      destination += futuresEnqueued -> dest
       val thisFuture = futuresEnqueued
+      destination += thisFuture -> dest
       Future {
         val compressed = compress(b)
         compressorSelf ! (thisFuture, compressed)
@@ -125,6 +130,9 @@ class Compressor extends Actor {
     case (int: Int, cb: CompressedBlock) =>
       doneBlocks += int -> cb
       emptyIfReady()
+
+    case Actors.queryForOpenFutures =>
+      sender() ! futuresEnqueued - nextToSend
 
     case Actors.`askIfFinished` => {
       println(s"Received question about finishing, $nextToSend == $futuresEnqueued?")
@@ -144,6 +152,14 @@ class Compressor extends Actor {
 
 }
 
-//while (openFutures > 20) {
-//  Thread.sleep(50)
+
+//var keepWaiting = true
+//while (keepWaiting) {
+//  val answer = Await.result(compressor ? queryForOpenFutures, 1.minute)
+//  answer match {
+//  case x: Int if x > 20 =>
+//  println(s"Currently have $x open futures, so waiting before resubmitting")
+//  Thread.sleep(500)
+//  case _ => keepWaiting = false
+//}
 //}
